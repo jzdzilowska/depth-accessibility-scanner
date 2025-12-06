@@ -1,6 +1,13 @@
+#include <WDT.h>
 #include <Stepper.h>
 
+
 // ================== CONFIG ==================
+
+// Watchdog: reset if not refreshed within this time (ms)
+const long WDT_INTERVAL_MS = 3000; 
+unsigned long lastWdtRefresh = 0;
+
 
 // Logical grid of the field (NOT physical actuators)
 const int GRID_SIZE = 5;          // can change to 20 later
@@ -236,10 +243,11 @@ void scanField() {
     bool endOfObjectRow = false;
 
     for (int x = 0; x < GRID_SIZE; x++) {
+      WDT.refresh();
       moveScannerTo(x, y);
       float d = readDistanceCm();
 
-      // "Big jump" logic within a row
+      // "Big jump" logic in a row
       if (x > 0) {
         float diff = d - prevDist;
         if (diff < 0) diff = -diff;
@@ -319,25 +327,47 @@ void transmitFrame() {
 
 void setup() {
   Serial.begin(115200);
-  delay(2000);  // give USB/Serial time to connect
+  delay(2000);
 
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  stepperX.setSpeed(10); // RPM
+  stepperX.setSpeed(10);
   stepperY.setSpeed(10);
+
+  if (WDT_INTERVAL_MS < 1) {
+    Serial.println("Invalid watchdog interval");
+    while (1) {}   // trap
+  }
+
+  if (WDT.begin(WDT_INTERVAL_MS)) {
+    Serial.print("WDT started, timeout = ");
+    WDT.refresh();
+    Serial.print(WDT.getTimeout());   
+    WDT.refresh();
+    Serial.println(" ms");
+    WDT.refresh();
+  } else {
+    Serial.println("Error initializing watchdog");
+    while (1) {}  // trap
+  }
 
   Serial.println("Depth Accessibility Scanner starting...");
   systemState = INIT;
 }
 
+
 void loop() {
   unsigned long now = millis();
 
+  if (now - lastWdtRefresh >= 500) { 
+    WDT.refresh();
+    lastWdtRefresh = now;
+  }
+
   // High-level FSM
   switch (systemState) {
-
     case INIT:
       initializeSystem();
       systemStatus = false;      // system starts OFF
