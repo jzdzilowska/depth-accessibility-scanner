@@ -3,18 +3,18 @@
 // ================== CONFIG ==================
 
 // Grid: 20x20 "pixels" of the *field* (not physical motor positions)
+// 5 for testing; change to 20 for final
 const int GRID_SIZE = 5;
 
-// Heights for tactile pixels, mapped 0..60 degrees
+// Heights for tactile pixels (normalized scale. This ISN'T mm!)
 const int MAX_HEIGHT_DEG = 60;
 
 // ---- STEPPER CONFIG ----
-// Steps per revolution (change this for your motor)
-const int STEPS_PER_REV_X = 2048;   // e.g., 28BYJ-48 approx
+// Steps per revolution (will need to change this for our motor)
+const int STEPS_PER_REV_X = 2048; 
 const int STEPS_PER_REV_Y = 2048;
 
-// Stepper pins (example for ULN2003 boards)
-// Adjust to match your wiring
+// Stepper pins
 const int STEPPER_X_IN1 = 8;
 const int STEPPER_X_IN2 = 9;
 const int STEPPER_X_IN3 = 10;
@@ -30,11 +30,11 @@ const int TRIG_PIN = 12;
 const int ECHO_PIN = 13;
 
 // Button to start scanning
-const int BUTTON_PIN = 2;    // active LOW (using INPUT_PULLUP)
+const int BUTTON_PIN = 2;    // active LOW
 
-// Angular range of the scanner (tune for your rig)
-const int ANGLE_X_MIN = 30;   // left
-const int ANGLE_X_MAX = 150;  // right
+// Angular range of the scanner
+const int ANGLE_X_MIN = 30;   // left. I.e., gridx=0, then angle=30
+const int ANGLE_X_MAX = 150;  // right. I.e., gridx=19, then angle=150
 const int ANGLE_Y_MIN = 30;   // up
 const int ANGLE_Y_MAX = 150;  // down
 
@@ -65,7 +65,6 @@ float distanceGrid[GRID_SIZE][GRID_SIZE];  // in cm
 // Height matrix for tactile grid (0..MAX_HEIGHT_DEG)
 int heightGrid[GRID_SIZE][GRID_SIZE];      // degrees or level
 
-// Simple FSM for the system
 enum SystemState {
   IDLE,
   SCANNING,
@@ -161,8 +160,6 @@ void scanField() {
     for (int x = 0; x < GRID_SIZE; x++) {
       // Rotate scanner to direction for this (x,y)
       moveScannerTo(x, y);
-
-      // Measure distance
       float d = readDistanceCm();
 
       // "Big jump" logic: if current reading is far from previous → end of object
@@ -183,8 +180,6 @@ void scanField() {
       }
 
       prevDist = d;
-
-      // Print row as we go for debugging
       Serial.print(distanceGrid[y][x], 1);
       Serial.print(x < GRID_SIZE - 1 ? ", " : "\n");
     }
@@ -268,10 +263,10 @@ void transmitFrame() {
 // ================== SETUP & LOOP ==================
 
 void setup() {
-  Serial.begin(115200);
-  delay(2000);  // <<< ADD THIS
+  Serial.begin(115200); // set baud rate
+  delay(2000);
 
-  Serial.println("setup start");  // <<< ADD THIS
+  Serial.println("setup start"); 
 
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
@@ -287,8 +282,7 @@ void setup() {
 }
 
 void loop() {
-  delay(200);  // <<< just for debugging so you can read it
-
+  delay(200); 
   int buttonState = digitalRead(BUTTON_PIN);
 
   switch (systemState) {
@@ -311,13 +305,11 @@ void loop() {
       Serial.println("Scan + height computation complete. READY.");
       break;
 
-
-
     case READY:
       // At this point:
       //  - distanceGrid[y][x] has distances (cm)
       //  - heightGrid[y][x] has heights 0..60
-      // You can now drive your 20x20 tactile actuators from heightGrid.
+      // We can drive 20x20 tactile actuators from heightGrid
 
       // Press button again to rescan
       if (buttonState == LOW) {
