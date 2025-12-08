@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Depth Accessibility Scanner – 3D Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Three.js + OrbitControls from CDN -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+// Simple orbit controls implementation
+class SimpleOrbitControls {
+  constructor(camera, domElement) {
+    this.camera = camera;
+    this.domElement = domElement;
+    
+    this.target = new THREE.Vector3(0, 0, 0.2);
+    this.rotation = { x: 0.5, y: 0.5 };
+    this.distance = 3;
+    this.pan = new THREE.Vector3(0, 0, 0);
+    
+    this.isDragging = false;
+    this.lastMouse = { x: 0, y: 0 };
+    
+    this.init();
+  }
+  
+  init() {
+    this.domElement.addEventListener('mousedown', this.onMouseDown.bind(this));
+    document.addEventListener('mousemove', this.onMouseMove.bind(this));
+    document.addEventListener('mouseup', this.onMouseUp.bind(this));
+    this.domElement.addEventListener('wheel', this.onWheel.bind(this));
+    
+    this.updateCamera();
+  }
+  
+  onMouseDown(event) {
+    this.isDragging = true;
+    this.lastMouse.x = event.clientX;
+    this.lastMouse.y = event.clientY;
+  }
+  
+  onMouseMove(event) {
+    if (!this.isDragging) return;
+    
+    const deltaX = event.clientX - this.lastMouse.x;
+    const deltaY = event.clientY - this.lastMouse.y;
+    
+    this.rotation.y += deltaX * 0.01;
+    this.rotation.x += deltaY * 0.01;
+    this.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.rotation.x));
+    
+    this.lastMouse.x = event.clientX;
+    this.lastMouse.y = event.clientY;
+    
+    this.updateCamera();
+  }
+  
+  onMouseUp() {
+    this.isDragging = false;
+  }
+  
+  onWheel(event) {
+    this.distance = Math.max(1, Math.min(10, this.distance + event.deltaY * 0.001));
+    this.updateCamera();
+  }
+  
+  updateCamera() {
+    const phi = this.rotation.x;
+    const theta = this.rotation.y;
+    
+    const x = this.distance * Math.sin(theta) * Math.cos(phi);
+    const z = this.distance * Math.cos(theta) * Math.cos(phi);
+    const y = this.distance * Math.sin(phi);
+    
+    this.camera.position.x = x + this.target.x + this.pan.x;
+    this.camera.position.y = y + this.target.y + this.pan.y;
+    this.camera.position.z = z + this.target.z + this.pan.z;
+    
+    this.camera.lookAt(
+      this.target.x + this.pan.x,
+      this.target.y + this.pan.y,
+      this.target.z + this.pan.z
+    );
+  }
+  
+  update() {}}
+  </script>
+  <style>
+    :root {
+      --bg: #050608;
+      --panel-bg: #0d1015;
+      --accent: #4f8cff;
+      --accent-soft: rgba(79, 140, 255, 0.1);
+      --text: #f5f7fb;
+      --muted: #9aa0b3;
+      --border: #1c2230;
+      --danger: #ff4f6e;
+      --success: #4fe3a3;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Inter", sans-serif;
+      background: radial-gradient(circle at top, #151b26 0, #050608 55%);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: 100%;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .title-block h1 {
+      font-size: 20px;
+      letter-spacing: 0.02em;
+    }
+
+    .title-block p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(8, 10, 16, 0.9);
+      backdrop-filter: blur(10px);
+    }
+
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 6px rgba(79, 227, 163, 0.8);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+      gap: 16px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+    }
+
+    .panel {
+      background: radial-gradient(circle at top left, #141a23 0, #05070b 60%);
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      padding: 14px 16px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
+    }
+
+    .panel h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .panel-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .controls-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    select {
+      background: #090b10;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 12px;
+      padding: 4px 10px;
+      outline: none;
+      min-width: 80px;
+    }
+
+    button {
+      cursor: pointer;
+      border-radius: 999px;
+      border: none;
+      font-size: 13px;
+      padding: 8px 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 500;
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 10px 30px rgba(79, 140, 255, 0.45);
+      transition: transform 0.08s ease, box-shadow 0.08s ease,
+        background 0.08s ease;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    button:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 36px rgba(79, 140, 255, 0.6);
+    }
+
+    button.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      box-shadow: none;
+      padding-inline: 12px;
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background: rgba(16, 21, 30, 0.8);
+      transform: none;
+    }
+
+    .status-card {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #1c2838;
+      background: radial-gradient(circle at top left, #162233 0, #05070b 80%);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+    }
+
+    .status-row span.value {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .status-row span.bad {
+      color: var(--danger);
+    }
+
+    .status-row span.good {
+      color: var(--success);
+    }
+
+    .status-row span.muted {
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .tag {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(158, 167, 194, 0.25);
+      color: var(--muted);
+      background: rgba(12, 16, 24, 0.9);
+    }
+
+    .viewer-panel {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    #viewer-container {
+      flex: 1;
+      min-height: 260px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at top, #111827 0, #050608 55%);
+      overflow: hidden;
+      position: relative;
+    }
+
+    #viewer {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .viewer-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .viewer-overlay span {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(5, 7, 12, 0.85);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+    }
+
+    footer {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 2px;
+    }
+
+    footer a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(154, 160, 179, 0.4);
+    }
+
+    footer a:hover {
+      color: var(--text);
+      border-bottom-color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title-block">
+        <h1>Depth Accessibility Scanner</h1>
+        <p>3D live viewer for your Arduino ultrasonic depth grid.</p>
+      </div>
+      <div class="pill">
+        <span class="pill-dot"></span>
+        Web Serial · local only
+      </div>
+    </header>
+
+    <main>
+      <!-- Left panel: controls -->
+      <section class="panel">
+        <h2>Controls</h2>
+        <p class="panel-subtitle">
+          Connect to your Arduino, press the hardware button to scan, and view
+          the 3D depth map in real time.
+        </p>
+
+        <div class="controls-group">
+          <div class="control-row">
+            <button id="connectButton">
+              <span>Connect to Scanner</span>
+            </button>
+            <button id="disconnectButton" class="secondary" disabled>
+              Disconnect
+            </button>
+          </div>
+
+          <div class="control-row">
+            <label for="displayResolution">Display resolution</label>
+            <select id="displayResolution">
+              <option value="5">5 × 5 (raw)</option>
+              <option value="10">10 × 10</option>
+              <option value="20" selected>20 × 20</option>
+              <option value="40">40 × 40</option>
+              <option value="80">80 × 80</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="status-card">
+          <div class="status-row">
+            <span>Connection</span>
+            <span id="statusConnection" class="value">Not connected</span>
+          </div>
+          <div class="status-row">
+            <span>Last frame</span>
+            <span id="statusFrame" class="value muted">None yet</span>
+          </div>
+          <div class="status-row">
+            <span>Grid size (from Arduino)</span>
+            <span id="statusGrid" class="value muted">–</span>
+          </div>
+          <div class="status-row">
+            <span>Distance range</span>
+            <span id="statusRange" class="value muted">–</span>
+          </div>
+          <div class="tags">
+            <span class="tag">Press Arduino button to scan</span>
+            <span class="tag">FRAME_BEGIN / FRAME_END protocol</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right panel: viewer -->
+      <section class="panel viewer-panel">
+        <h2>3D Depth Surface</h2>
+        <p class="panel-subtitle">
+          Height represents proximity (closer = higher). You can orbit, pan,
+          and zoom.
+        </p>
+
+        <div id="viewer-container">
+          <canvas id="viewer"></canvas>
+          <div class="viewer-overlay" id="viewerOverlay">
+            <span>Connect & run a scan to see the surface.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>
+        Tip: if nothing appears, check that your Arduino is sending
+        FRAME_BEGIN / FRAME_END blocks at 115200 baud.
+      </span>
+      <span>Made for your depth accessibility project.</span>
+    </footer>
+  </div>
+
+  <script>
+    // ================ SERIAL + FRAME PARSING ================
+
+    const connectButton = document.getElementById("connectButton");
+    const disconnectButton = document.getElementById("disconnectButton");
+    const statusConnection = document.getElementById("statusConnection");
+    const statusFrame = document.getElementById("statusFrame");
+    const statusGrid = document.getElementById("statusGrid");
+    const statusRange = document.getElementById("statusRange");
+    const displayResolutionSelect = document.getElementById(
+      "displayResolution"
+    );
+    const viewerOverlay = document.getElementById("viewerOverlay");
+
+    let port = null;
+    let reader = null;
+    let textDecoder = null;
+
+    let incomingGrid = null; // 2D array [y][x] of distances
+    let incomingGridSize = null;
+    let lastFrameTime = null;
+
+    let lineBuffer = "";
+    let inFrame = false;
+    let frameLines = [];
+
+    const BAUD_RATE = 115200;
+
+    connectButton.addEventListener("click", async () => {
+      if (!("serial" in navigator)) {
+        alert(
+          "Web Serial API not supported in this browser. Use Chrome or Edge on desktop."
+        );
+        return;
+      }
+
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: BAUD_RATE });
+        textDecoder = new TextDecoderStream();
+        port.readable.pipeTo(textDecoder.writable);
+        reader = textDecoder.readable.getReader();
+
+        connectButton.disabled = true;
+        disconnectButton.disabled = false;
+        statusConnection.textContent = "Connected";
+        statusConnection.classList.remove("bad", "muted");
+        statusConnection.classList.add("good");
+
+        readLoop();
+      } catch (err) {
+        console.error("Error opening serial port:", err);
+        statusConnection.textContent = "Failed to connect";
+        statusConnection.classList.add("bad");
+      }
+    });
+
+    disconnectButton.addEventListener("click", async () => {
+      await disconnectSerial();
+    });
+
+    async function disconnectSerial() {
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch (e) {
+          console.warn(e);
+        }
+        reader = null;
+      }
+
+      if (port) {
+        try {
+          await port.close();
+        } catch (e) {
+          console.warn(e);
+        }
+        port = null;
+      }
+
+      connectButton.disabled = false;
+      disconnectButton.disabled = true;
+      statusConnection.textContent = "Not connected";
+      statusConnection.classList.remove("good", "bad");
+      statusConnection.classList.add("muted");
+    }
+
+    async function readLoop() {
+      try {
+        while (port && reader) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            handleSerialChunk(value);
+          }
+        }
+      } catch (err) {
+        console.error("Read loop error:", err);
+        statusConnection.textContent = "Disconnected (error)";
+        statusConnection.classList.add("bad");
+        connectButton.disabled = false;
+        disconnectButton.disabled = true;
+      }
+    }
+
+    // Chunk handler: split into lines and parse frame protocol
+    function handleSerialChunk(chunk) {
+      lineBuffer += chunk;
+      let lines = lineBuffer.split(/\r?\n/);
+      lineBuffer = lines.pop(); // keep incomplete line
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+
+        if (line === "FRAME_BEGIN") {
+          inFrame = true;
+          frameLines = [];
+          continue;
+        }
+
+        if (line === "FRAME_END") {
+          inFrame = false;
+          try {
+            processFrame(frameLines);
+          } catch (e) {
+            console.error("Error processing frame:", e);
+          }
+          frameLines = [];
+          continue;
+        }
+
+        if (inFrame) {
+          frameLines.push(line);
+        } else {
+          // Other debug prints from Arduino; ignore or log if needed:
+          // console.log("[Arduino]", line);
+        }
+      }
+    }
+
+    // Parse the frame lines into grid data
+    function processFrame(lines) {
+      // Expected:
+      // 0: GRID_SIZE=N
+      // 1: "DISTANCES"
+      // then N lines of CSV values
+      if (lines.length < 3) {
+        console.warn("Frame too short:", lines);
+        return;
+      }
+
+      const sizeLine = lines[0];
+      const header = lines[1];
+
+      if (!sizeLine.startsWith("GRID_SIZE=")) {
+        console.warn("Unexpected frame header:", lines);
+        return;
+      }
+      const sizeStr = sizeLine.split("=")[1].trim();
+      const N = parseInt(sizeStr, 10);
+      if (isNaN(N) || N <= 0) {
+        console.warn("Invalid grid size:", sizeStr);
+        return;
+      }
+      if (header !== "DISTANCES") {
+        console.warn("Missing DISTANCES header");
+        return;
+      }
+
+      const rows = lines.slice(2);
+      if (rows.length < N) {
+        console.warn("Not enough rows for grid", rows.length, "expected", N);
+        return;
+      }
+
+      const grid = [];
+      let minDist = Number.POSITIVE_INFINITY;
+      let maxDist = 0;
+
+      for (let y = 0; y < N; y++) {
+        const rowStr = rows[y];
+        const parts = rowStr.split(",");
+        if (parts.length < N) {
+          console.warn("Row", y, "too short", parts.length, "expected", N);
+          return;
+        }
+        const row = [];
+        for (let x = 0; x < N; x++) {
+          const v = parseFloat(parts[x]);
+          const d = isNaN(v) ? 400 : v; // fallback
+          row.push(d);
+          if (d < minDist) minDist = d;
+          if (d > maxDist) maxDist = d;
+        }
+        grid.push(row);
+      }
+
+      incomingGrid = grid;
+      incomingGridSize = N;
+      lastFrameTime = Date.now();
+
+      statusFrame.textContent = "OK (" + N + "×" + N + ")";
+      statusFrame.classList.remove("muted", "bad");
+      statusFrame.classList.add("good");
+      statusGrid.textContent = N + " × " + N;
+
+      statusRange.textContent =
+        minDist.toFixed(1) + " – " + maxDist.toFixed(1) + " cm";
+      statusRange.classList.remove("muted");
+      viewerOverlay.style.display = "none";
+
+      // Update visualization
+      rebuildMesh();
+    }
+
+    displayResolutionSelect.addEventListener("change", () => {
+      if (incomingGrid) {
+        rebuildMesh();
+      }
+    });
+
+    // ================ 3D VIEWER (Three.js) ================
+
+    let scene, camera, renderer, controls;
+    let surfaceMesh = null;
+
+    const canvas = document.getElementById("viewer");
+    const container = document.getElementById("viewer-container");
+
+    function initThree() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050608);
+
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+      camera.position.set(1.2, 1.5, 1.8);
+
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+      });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
+
+      // Use SimpleOrbitControls instead
+      controls = new SimpleOrbitControls(camera, renderer.domElement);
+      controls.target = new THREE.Vector3(0, 0, 0.2);
+
+      // Lights
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      keyLight.position.set(2, 2, 3);
+      scene.add(keyLight);
+
+      const fillLight = new THREE.DirectionalLight(0x96b6ff, 0.5);
+      fillLight.position.set(-2, -2, 2);
+      scene.add(fillLight);
+
+      const ambient = new THREE.AmbientLight(0x404040, 1.1);
+      scene.add(ambient);
+
+      // Ground plane slight
+      const groundGeo = new THREE.PlaneGeometry(4, 4);
+      const groundMat = new THREE.MeshBasicMaterial({
+        color: 0x11141c,
+        transparent: true,
+        opacity: 0.7,
+      });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -0.02;
+      scene.add(ground);
+
+      window.addEventListener("resize", onResize);
+      animate();
+    }
+
+    function onResize() {
+      if (!camera || !renderer) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    // Build/replace the surface mesh based on incomingGrid + chosen resolution
+    function rebuildMesh() {
+      if (!incomingGrid || !incomingGridSize) return;
+      const srcN = incomingGridSize;
+      const dstN = parseInt(displayResolutionSelect.value, 10) || srcN;
+
+      // Resample distances to dstN×dstN
+      const resampled = [];
+      let minD = Number.POSITIVE_INFINITY;
+      let maxD = 0;
+      const maxCap = 400; // same as Arduino's DIST_MAX_CM
+
+      for (let j = 0; j < dstN; j++) {
+        const row = [];
+        const sy = (j * (srcN - 1)) / (dstN - 1);
+        const syi = Math.round(sy);
+        for (let i = 0; i < dstN; i++) {
+          const sx = (i * (srcN - 1)) / (dstN - 1);
+          const sxi = Math.round(sx);
+          const d = incomingGrid[syi][sxi];
+          row.push(d);
+          if (d < maxCap) {
+            if (d < minD) minD = d;
+            if (d > maxD) maxD = d;
+          }
+        }
+        resampled.push(row);
+      }
+
+      if (minD === Number.POSITIVE_INFINITY || maxD === 0) {
+        minD = 0;
+        maxD = 1;
+      }
+      if (maxD <= minD) {
+        maxD = minD + 1;
+      }
+
+      const geometry = new THREE.PlaneGeometry(1, 1, dstN - 1, dstN - 1);
+
+      // Map distance → height ∈ [0, 0.4] (adjust height scale here)
+      const positions = geometry.attributes.position;
+      const vertexCount = positions.count;
+
+      const heights = [];
+      for (let j = 0; j < dstN; j++) {
+        for (let i = 0; i < dstN; i++) {
+          const d = resampled[j][i];
+          let h = 0;
+          if (d < maxCap) {
+            const ratio = (maxD - d) / (maxD - minD); // closer → higher
+            h = Math.max(0, Math.min(1, ratio)) * 0.4;
+          }
+          heights.push(h);
+        }
+      }
+
+      for (let idx = 0; idx < vertexCount; idx++) {
+        const z = heights[idx];
+        positions.setZ(idx, z);
+      }
+      positions.needsUpdate = true;
+      geometry.computeVertexNormals();
+
+      // Vertex colors based on height
+      const colors = [];
+      const color = new THREE.Color();
+      const minColor = new THREE.Color("#233554"); // far
+      const maxColor = new THREE.Color("#4f8cff"); // mid
+      const peakColor = new THREE.Color("#f97373"); // very close
+
+      for (let idx = 0; idx < vertexCount; idx++) {
+        const h = heights[idx];
+        let t = h / 0.4; // 0..1
+        t = Math.max(0, Math.min(1, t));
+
+        if (t < 0.5) {
+          // blend minColor → maxColor
+          const tt = t / 0.5;
+          color.copy(minColor).lerp(maxColor, tt);
+        } else {
+          // blend maxColor → peakColor
+          const tt = (t - 0.5) / 0.5;
+          color.copy(maxColor).lerp(peakColor, tt);
+        }
+        colors.push(color.r, color.g, color.b);
+      }
+
+      geometry.setAttribute(
+        "color",
+        new THREE.Float32BufferAttribute(colors, 3)
+      );
+
+      const material = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        metalness: 0.15,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+      });
+
+      if (surfaceMesh) {
+        scene.remove(surfaceMesh);
+        surfaceMesh.geometry.dispose();
+        surfaceMesh.material.dispose();
+      }
+
+      surfaceMesh = new THREE.Mesh(geometry, material);
+      surfaceMesh.rotation.x = -Math.PI / 2; // lay flat
+      surfaceMesh.position.y = 0; // just above ground
+      scene.add(surfaceMesh);
+
+      // Update status to include display resolution
+      statusFrame.textContent =
+        "OK (" + srcN + "×" + srcN + " → " + dstN + "×" + dstN + ")";
+    }
+
+    // Init 3D scene
+    initThree();
+  </script>
+</body>
+</html>
