@@ -36,11 +36,19 @@ const int ECHO_PIN  = 13;
 // System button: start / toggle
 const int BUTTON_PIN = 2;   // INPUT_PULLUP, active LOW
 
-// Angular range of scanner
-const int ANGLE_X_MIN = 30;   // degrees
-const int ANGLE_X_MAX = 150;
-const int ANGLE_Y_MIN = 30;
-const int ANGLE_Y_MAX = 150;
+// Angular range: only 40° wide around center (90°)
+const int ANGLE_X_CENTER = 90;
+const int ANGLE_Y_CENTER = 90;
+
+const int ANGLE_SPAN_X = 40;   // total width = 40°
+const int ANGLE_SPAN_Y = 40;   // total height = 40°
+
+const int ANGLE_X_MIN = ANGLE_X_CENTER - ANGLE_SPAN_X / 2;  // 70°
+const int ANGLE_X_MAX = ANGLE_X_CENTER + ANGLE_SPAN_X / 2;  // 110°
+
+const int ANGLE_Y_MIN = ANGLE_Y_CENTER - ANGLE_SPAN_Y / 2;  // 70°
+const int ANGLE_Y_MAX = ANGLE_Y_CENTER + ANGLE_SPAN_Y / 2;  // 110°
+
 
 // Distance range (cm)
 const float DIST_MIN_CM = 3.0;
