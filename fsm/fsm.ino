@@ -4,13 +4,12 @@
 
 // ================== CONFIG ==================
 
-// Watchdog: reset if not refreshed within this time (ms)
+// Watchdog
 const long WDT_INTERVAL_MS = 3000; 
 unsigned long lastWdtRefresh = 0;
 
-
 // Logical grid of the field (NOT physical actuators)
-const int GRID_SIZE = 5;          // can change to 20 later
+const int GRID_SIZE = 15;         
 const int MAX_HEIGHT_DEG = 60;    // max "height" for tactile pixels - NOT cm!
 
 // ---- STEPPER CONFIG ----
@@ -36,19 +35,11 @@ const int ECHO_PIN  = 13;
 // System button: start / toggle
 const int BUTTON_PIN = 2;   // INPUT_PULLUP, active LOW
 
-// Angular range: only 40° wide around center (90°)
-const int ANGLE_X_CENTER = 90;
-const int ANGLE_Y_CENTER = 90;
-
-const int ANGLE_SPAN_X = 40;   // total width = 40°
-const int ANGLE_SPAN_Y = 40;   // total height = 40°
-
-const int ANGLE_X_MIN = ANGLE_X_CENTER - ANGLE_SPAN_X / 2;  // 70°
-const int ANGLE_X_MAX = ANGLE_X_CENTER + ANGLE_SPAN_X / 2;  // 110°
-
-const int ANGLE_Y_MIN = ANGLE_Y_CENTER - ANGLE_SPAN_Y / 2;  // 70°
-const int ANGLE_Y_MAX = ANGLE_Y_CENTER + ANGLE_SPAN_Y / 2;  // 110°
-
+// Angle ranges (degrees)
+const int ANGLE_X_MIN = 0;
+const int ANGLE_X_MAX = 40;
+const int ANGLE_Y_MIN = 0;
+const int ANGLE_Y_MAX = 40;
 
 // Distance range (cm)
 const float DIST_MIN_CM = 3.0;
@@ -74,7 +65,7 @@ long currentStepsY = 0;
 const float STEPS_PER_DEG_X = (float)STEPS_PER_REV_X / 360.0f;
 const float STEPS_PER_DEG_Y = (float)STEPS_PER_REV_Y / 360.0f;
 
-// Scene data
+// Scene datax
 float distanceGrid[GRID_SIZE][GRID_SIZE];  // cm
 int   heightGrid[GRID_SIZE][GRID_SIZE];    // 0..MAX_HEIGHT_DEG
 
@@ -111,10 +102,10 @@ float readDistanceCm() {
   long duration = pulseIn(ECHO_PIN, HIGH, 30000); // 30ms timeout
 
   if (duration == 0) {
-    return DIST_MAX_CM;  // no echo → treat as "very far"
+    return DIST_MAX_CM;  // no echo -> treat as "very far"
   }
 
-  float distance = (duration * 0.0343f) / 2.0f;  // us → cm
+  float distance = (duration * 0.0343f) / 2.0f;  // us -> cm
 
   if (distance < DIST_MIN_CM) distance = DIST_MIN_CM;
   if (distance > DIST_MAX_CM) distance = DIST_MAX_CM;
@@ -160,7 +151,6 @@ void initializeSystem() {
 
   // Reset timers
   savedClock = millis();
-
   Serial.println("System initialized (INIT).");
 }
 
@@ -170,7 +160,7 @@ void add(unsigned int x, unsigned int y, unsigned int h) {
   heightGrid[y][x] = (int)h;
 }
 
-// Convert raw distance reading → height for actuator / tactile pixel
+// Convert raw distance reading to height for actuator / tactile pixel
 // Uses global gMinDist, gMaxDist from the current scan
 int height(unsigned long distance) {
   float d = (float)distance;
@@ -179,7 +169,7 @@ int height(unsigned long distance) {
     return 0;  // background
   }
   if (gMaxDist <= gMinDist) {
-    return 0;  // degenerate case
+    return 0;  // degenerate
   }
 
   float ratio = (gMaxDist - d) / (gMaxDist - gMinDist); // 0..1
@@ -197,11 +187,10 @@ bool outOfBoundsAngle(unsigned long angle) {
 
 // Placeholder for linear motion check (not used yet)
 bool outOfBoundsLinear(unsigned long position) {
-  // Suppose valid range is [0, 100] as in your spec
   return (position > 100UL);
 }
 
-// Map grid index → angles
+// Map grid index to angles
 int gridToAngleX(int x) {
   return map(x, 0, GRID_SIZE - 1, ANGLE_X_MIN, ANGLE_X_MAX);
 }
@@ -228,17 +217,54 @@ void moveScannerTo(int x, int y) {
   long deltaX = calcAngleSteps(currentStepsX, x, y, true);
   long deltaY = calcAngleSteps(currentStepsY, x, y, false);
 
-  if (deltaX != 0) {
-    stepperX.step(deltaX);
-    currentStepsX += deltaX;
-  }
-  if (deltaY != 0) {
-    stepperY.step(deltaY);
-    currentStepsY += deltaY;
-  }
+  int stepsX = abs(deltaX);
+  int stepsY = abs(deltaY);
 
-  delay(10); // settle
+  int dirX = (deltaX >= 0) ? 1 : -1;
+  int dirY = (deltaY >= 0) ? 1 : -1;
+
+  int maxSteps = max(stepsX, stepsY);
+
+  for (int i = 0; i < maxSteps; i++) {
+    if (i < stepsX) {
+      stepperX.step(dirX);
+      currentStepsX += dirX;
+    }
+    if (i < stepsY) {
+      stepperY.step(dirY);
+      currentStepsY += dirY;
+    }
+    // small delay to avoid shaking; tweak as needed
+    delay(2);
+  }
 }
+
+void homeScanner() {
+  long targetStepsX = (long)(ANGLE_X_MIN * STEPS_PER_DEG_X + 0.5f);
+  long targetStepsY = (long)(ANGLE_Y_MIN * STEPS_PER_DEG_Y + 0.5f);
+
+  long deltaX = targetStepsX - currentStepsX;
+  long deltaY = targetStepsY - currentStepsY;
+
+  int stepsX = abs(deltaX);
+  int stepsY = abs(deltaY);
+  int dirX = (deltaX >= 0) ? 1 : -1;
+  int dirY = (deltaY >= 0) ? 1 : -1;
+
+  int maxSteps = max(stepsX, stepsY);
+  for (int i = 0; i < maxSteps; i++) {
+    if (i < stepsX) {
+      stepperX.step(dirX);
+      currentStepsX += dirX;
+    }
+    if (i < stepsY) {
+      stepperY.step(dirY);
+      currentStepsY += dirY;
+    }
+    delay(2);
+  }
+}
+
 
 // ================== SCANNING LOGIC ==================
 
@@ -277,7 +303,6 @@ void scanField() {
       Serial.print(x < GRID_SIZE - 1 ? ", " : "\n");
     }
   }
-
   Serial.println("=== Field scan complete ===");
 }
 
@@ -327,7 +352,6 @@ void transmitFrame() {
     }
     Serial.println();
   }
-
   Serial.println("FRAME_END");
 }
 
@@ -379,7 +403,7 @@ void loop() {
     case INIT:
       initializeSystem();
       systemStatus = false;      // system starts OFF
-      systemState = WAIT;        // go wait for user
+      systemState = WAIT;        // go wait for button press
       break;
 
     case WAIT:
@@ -406,10 +430,10 @@ void loop() {
       systemState = END;
       break;
 
-    case END:
-      // End of one full cycle; could do cleanup or homing here.
-      // For now, just go back to WAIT and allow another toggle.
-      systemState = WAIT;
-      break;
+      case END:
+        Serial.println("Homing scanner...");
+        homeScanner();
+        systemState = WAIT;
+        break;
   }
 }
