@@ -32,6 +32,9 @@ const int STEPPER_Y_IN4 = 7;
 const int TRIG_PIN  = 12;
 const int ECHO_PIN  = 13;
 
+// PWM status LED (scan progress)
+const int PWM_LED_PIN = 3; 
+
 // System button: start / toggle
 const int BUTTON_PIN = 2;   // INPUT_PULLUP, active LOW
 
@@ -297,11 +300,13 @@ void scanField() {
       }
 
       prevDist = d;
-
-      // Debug print
       Serial.print(distanceGrid[y][x], 1);
       Serial.print(x < GRID_SIZE - 1 ? ", " : "\n");
     }
+    // update PWM LED after finishing row y
+    int rowsCompleted = y + 1;                 // 1..GRID_SIZE
+    int brightness = map(rowsCompleted, 0, GRID_SIZE, 0, 255);
+    analogWrite(PWM_LED_PIN, brightness);
   }
   Serial.println("=== Field scan complete ===");
 }
@@ -364,6 +369,9 @@ void setup() {
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  pinMode(PWM_LED_PIN, OUTPUT);      // NEW: PWM LED
+  analogWrite(PWM_LED_PIN, 0);       // start off
 
   stepperX.setSpeed(10);
   stepperY.setSpeed(10);
