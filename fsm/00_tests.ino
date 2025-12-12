@@ -11,7 +11,7 @@ int fakeDigitalRead(uint8_t /*pin*/) {
   return g_fakeButtonRead;
 }
 
-xstatic unsigned long g_fakePulseIn = 0;
+static unsigned long g_fakePulseIn = 0;
 unsigned long fakePulseIn(uint8_t /*pin*/, uint8_t /*state*/, unsigned long /*timeout*/) {
   return g_fakePulseIn;
 }
